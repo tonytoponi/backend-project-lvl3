@@ -45,8 +45,18 @@ describe('Page-load tests', () => {
       await pageLoader(url, tempDirectory);
       expect(scope.isDone()).toBeTruthy();
       const tempFilePath = path.join(tempDirectory, 'tonytoponi-github-io.html');
-
+      const tempScriptPath = path.join(tempDirectory, 'tonytoponi-github-io_files/javascript-index.js');
+      const tempStylePath = path.join(tempDirectory, 'tonytoponi-github-io_files/styles-styles.css');
+      const tempImages = [
+        'tonytoponi-github-io_files/img-photo-1594667447546-9a7094a69663.jpeg',
+        'tonytoponi-github-io_files/img-photo-1595181271233-35297004788d.jpeg',
+        'tonytoponi-github-io_files/img-photo-1595296647731-432e76106504.jpeg',
+        'tonytoponi-github-io_files/img-photo-1595831229176-ab024bc68fe9.jpeg',
+      ].map((imagePath) => path.join(tempDirectory, imagePath));
       await expect(fs.readFile(tempFilePath, 'utf-8')).resolves.toBe(body);
+      await expect(fs.readFile(tempScriptPath, 'utf-8')).resolves.toBe(script);
+      await expect(fs.readFile(tempStylePath, 'utf-8')).resolves.toBe(styles);
+      await tempImages.map((tempImage, index) => expect(fs.readFile(tempImage, 'binary')).resolves.toBe(images[index]));
     },
   );
 
