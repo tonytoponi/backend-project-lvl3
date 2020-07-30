@@ -19,7 +19,7 @@ const pageLoad = (pageUrl, outputDirectory = process.cwd()) => {
   });
   const fileName = generateName(pageUrl);
   const filePath = path.join(outputDirectory, fileName);
-  return http.get('/')
-    .then(({ data }) => fs.writeFile(filePath, data));
+  const filedata = http.get('/');
+  return filedata.then(({ data }) => fs.writeFile(filePath, data));
 };
 export default pageLoad;

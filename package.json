@@ -28,7 +28,8 @@
     "url": "https://github.com/tonytoponi/backend-project-lvl3/issues"
   },
   "jest": {
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testPathIgnorePatterns": ["<rootDir>/node_modules/", "<rootDir>/__tests__/__fixtures__/"]
   },
   "homepage": "https://github.com/tonytoponi/backend-project-lvl3#readme",
   "dependencies": {
