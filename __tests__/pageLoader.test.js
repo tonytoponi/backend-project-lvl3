@@ -2,10 +2,13 @@ import { promises as fs } from 'fs';
 import nock from 'nock';
 import path from 'path';
 import os from 'os';
+import rmdir from 'rimraf';
 import pageLoader from '../src';
+
 
 const url = 'https://tonytoponi.github.io';
 const testFilePath = path.join(process.cwd(), '/__tests__/__fixtures__/index.html');
+const resultFilePath = path.join(process.cwd(), '/__tests__/__fixtures__/localIndex.html');
 const testScriptFile = path.join(process.cwd(), '/__tests__/__fixtures__/javascript/index.js');
 const testStylesFile = path.join(process.cwd(), '/__tests__/__fixtures__/styles/styles.css');
 const imageFiles = [
@@ -23,25 +26,39 @@ describe('Page-load tests', () => {
   test(
     'Should download page, resourses from page, and all links to local then request is correct',
     async () => {
-      const body = await fs.readFile(testFilePath, 'utf-8');
+      const result = await fs.readFile(resultFilePath, 'utf-8');
       const script = await fs.readFile(testScriptFile, 'utf-8');
       const styles = await fs.readFile(testStylesFile, 'utf-8');
-      const images = await imageFiles.map((image) => fs.readFile(image, 'binary'));
+      const images = await Promise.all(imageFiles.map((image) => fs.readFile(image)));
       const scope = nock(url)
         .get('/')
-        .reply(200, body)
+        .replyWithFile(200, testFilePath, {
+          'Content-Type': 'text/html',
+        })
         .get('/javascript/index.js')
-        .reply(200, script)
-        .get('/style/styles.css')
-        .reply(200, styles)
+        .replyWithFile(200, testScriptFile, {
+          'Content-Type': 'text/javascript',
+        })
+        .get('/styles/styles.css')
+        .replyWithFile(200, testStylesFile, {
+          'Content-Type': 'text/css',
+        })
         .get('/img/photo-1594667447546-9a7094a69663.jpeg')
-        .reply(200, images[0])
+        .replyWithFile(200, imageFiles[0], {
+          'Content-Type': 'image/jpeg',
+        })
         .get('/img/photo-1595181271233-35297004788d.jpeg')
-        .reply(200, images[1])
+        .replyWithFile(200, imageFiles[1], {
+          'Content-Type': 'image/jpeg',
+        })
         .get('/img/photo-1595296647731-432e76106504.jpeg')
-        .reply(200, images[2])
+        .replyWithFile(200, imageFiles[2], {
+          'Content-Type': 'image/jpeg',
+        })
         .get('/img/photo-1595831229176-ab024bc68fe9.jpeg')
-        .reply(200, images[3]);
+        .replyWithFile(200, imageFiles[3], {
+          'Content-Type': 'image/jpeg',
+        });
       await pageLoader(url, tempDirectory);
       expect(scope.isDone()).toBeTruthy();
       const tempFilePath = path.join(tempDirectory, 'tonytoponi-github-io.html');
@@ -53,30 +70,15 @@ describe('Page-load tests', () => {
         'tonytoponi-github-io_files/img-photo-1595296647731-432e76106504.jpeg',
         'tonytoponi-github-io_files/img-photo-1595831229176-ab024bc68fe9.jpeg',
       ].map((imagePath) => path.join(tempDirectory, imagePath));
-      await expect(fs.readFile(tempFilePath, 'utf-8')).resolves.toBe(body);
+      await expect(fs.readFile(tempFilePath, 'utf-8')).resolves.toBe(result);
       await expect(fs.readFile(tempScriptPath, 'utf-8')).resolves.toBe(script);
       await expect(fs.readFile(tempStylePath, 'utf-8')).resolves.toBe(styles);
-      await tempImages.map((tempImage, index) => expect(fs.readFile(tempImage, 'binary')).resolves.toBe(images[index]));
+      tempImages.map((image, i) => expect(fs.readFile(image)).resolves.toStrictEqual(images[i]));
     },
   );
 
   afterEach(async () => {
     await fs.unlink(path.join(tempDirectory, 'tonytoponi-github-io.html'));
-    await fs.rmdir(tempDirectory);
+    await rmdir(tempDirectory, (error) => error);
   });
 });
-
-test(
-  'Should download page at process.cwd directory by default',
-  async () => {
-    const body = await fs.readFile(testFilePath, 'utf-8');
-    const scope = nock(url)
-      .get('/')
-      .reply(200, body);
-    await pageLoader(url);
-    expect(scope.isDone()).toBeTruthy();
-    const tempFilePath = path.join(process.cwd(), 'tonytoponi-github-io.html');
-    await expect(fs.readFile(tempFilePath, 'utf-8')).resolves.toBe(body);
-    await fs.unlink(tempFilePath);
-  },
-);
