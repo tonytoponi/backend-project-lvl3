@@ -1,6 +1,6 @@
 {
   "name": "backend-project-lvl3",
-  "version": "0.0.1",
+  "version": "0.1.12",
   "description": "Page loader",
   "main": "index.js",
   "bin": {
@@ -28,11 +28,16 @@
     "url": "https://github.com/tonytoponi/backend-project-lvl3/issues"
   },
   "jest": {
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testPathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/__tests__/__fixtures__/"
+    ]
   },
   "homepage": "https://github.com/tonytoponi/backend-project-lvl3#readme",
   "dependencies": {
     "axios": "^0.19.2",
+    "cheerio": "^1.0.0-rc.3",
     "commander": "^5.0.0",
     "lodash": "^4.17.14"
   },
@@ -52,6 +57,7 @@
     "eslint-plugin-jest": "^23.8.2",
     "jest": "^25.1.0",
     "jest-cli": "^25.1.0",
-    "nock": "^12.0.3"
+    "nock": "^12.0.3",
+    "rimraf": "^3.0.2"
   }
 }
