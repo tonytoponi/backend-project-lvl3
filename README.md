@@ -4,3 +4,8 @@
 How to use
 
 [![asciicast](https://asciinema.org/a/jpefrHFU7q0KwIuUSeB5hoq9K.svg)](https://asciinema.org/a/jpefrHFU7q0KwIuUSeB5hoq9K)
+
+
+Page with resourses
+
+[![asciicast](https://asciinema.org/a/bfn8KEspzHnEDRBlw9tqZox0i.svg)](https://asciinema.org/a/bfn8KEspzHnEDRBlw9tqZox0i)

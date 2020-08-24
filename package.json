@@ -1,6 +1,6 @@
 {
   "name": "backend-project-lvl3",
-  "version": "0.1.1",
+  "version": "0.1.12",
   "description": "Page loader",
   "main": "index.js",
   "bin": {
