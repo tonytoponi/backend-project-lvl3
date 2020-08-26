@@ -1,8 +1,12 @@
 import { promises as fs, createWriteStream } from 'fs';
 import axios from 'axios';
 import path from 'path';
+import debug from 'debug';
 import { parse } from 'url';
 import { getAllResoursesLinks, changeLink } from './page.js';
+
+require('axios-debug-log');
+
 
 const streamToFile = (inputStream, filePath) => new Promise((resolve, reject) => {
   const fileWriteStream = createWriteStream(filePath);
@@ -49,6 +53,7 @@ const downloadData = (http, url) => {
 };
 
 const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
+  const deb = debug('page-loader');
   const http = axios.create({
     baseURL,
     timeout: 5000,
@@ -56,6 +61,7 @@ const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
   const pageData = downloadData(http, '/');
   const pageResourses = pageData.then(({ data }) => {
     const links = getAllResoursesLinks(data, baseURL);
+    deb(`Links found: ${links}`);
     if (links.length === 0) {
       return { html: data, resourses: [] };
     }
@@ -84,11 +90,18 @@ const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
         const { pathname } = parse(url);
         const fileName = generateName(removeType(pathname), getType(pathname));
         const filePath = path.join(outputDirectory, folderName, fileName);
+        deb(`Document ${fileName}`);
+        deb(`Saved at ${filePath}`);
         result.push(streamToFile(data, filePath));
       });
+      deb(`Document ${pageName}`);
+      deb(`Saved at ${pagePath}`);
       result.push(fs.writeFile(pagePath, localHtml));
     });
-    return Promise.all(result);
+    return Promise.all(result).catch((err) => {
+      deb(err);
+      throw new Error(err);
+    });
   });
 };
 export default pageLoad;

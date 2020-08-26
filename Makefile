@@ -4,7 +4,7 @@ build:
 	rm -rf dist
 	npm run build
 start:
-	npx babel-node -- 'src/bin/pageLoader.js'
+	DEBUG=axios,page-loader,nock.* npx babel-node -- 'src/bin/pageLoader.js'
 publish:
 	npm publish --dry-run
 installApp:
@@ -18,4 +18,6 @@ test:
 test-coverage:
 	npm test -- --coverage
 watch:
-	npm run testWatch
+	DEBUG=axios,page-loader,nock.* npm run testWatch
+debug:
+	DEBUG=axios,page-loader,nock.* npx babel-node -- 'src/bin/pageLoader.js' https://tonytoponi.github.io/

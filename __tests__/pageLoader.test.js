@@ -5,7 +5,6 @@ import os from 'os';
 import rmdir from 'rimraf';
 import pageLoader from '../src';
 
-
 const url = 'https://tonytoponi.github.io';
 const testFilePath = path.join(process.cwd(), '/__tests__/__fixtures__/index.html');
 const resultFilePath = path.join(process.cwd(), '/__tests__/__fixtures__/localIndex.html');
