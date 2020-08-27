@@ -18,6 +18,21 @@ const imageFiles = [
 ].map((imagePath) => path.join(process.cwd(), imagePath));
 let tempDirectory;
 
+test(
+  'Should download to process.cwd() if output directory not set',
+  async () => {
+    const filePath = path.join(process.cwd(), 'tonytoponi-github-io.html');
+    const document = '<!DOCTYPE html><html><body><h1>Hello World</h1></body></html>';
+    const scope = nock(url)
+      .get('/')
+      .reply(200, document);
+    await pageLoader(url);
+    expect(scope.isDone()).toBeTruthy();
+    await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe(document);
+    await fs.unlink(filePath);
+  },
+);
+
 describe('Page-load tests', () => {
   beforeEach(async () => {
     tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), '/page-loader-'));
@@ -77,7 +92,6 @@ describe('Page-load tests', () => {
   );
 
   afterEach(async () => {
-    await fs.unlink(path.join(tempDirectory, 'tonytoponi-github-io.html'));
     await rmdir(tempDirectory, (error) => error);
   });
 });
