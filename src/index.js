@@ -67,7 +67,7 @@ const downloadResourses = (http, { page, links }) => {
 const makePageResourseLocal = (acc, url, folderName) => {
   const { pathname } = parse(url);
   const fileName = generateName(removeType(pathname), getType(pathname));
-  const newLink = `./${folderName}/${fileName}`;
+  const newLink = `./${path.join(folderName, fileName)}`;
   return changeLink(acc, pathname, newLink);
 };
 
@@ -110,7 +110,7 @@ const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
     baseURL,
     timeout: 5000,
   });
-  const pageData = downloadData(http, '/');
+  const pageData = downloadData(http, baseURL);
   const pageInformation = pageData.then(getPageInformation);
   const pageResourses = pageInformation.then((data) => downloadResourses(http, data));
   const savedPage = pageResourses.then((data) => savePage(outputDirectory, data));
