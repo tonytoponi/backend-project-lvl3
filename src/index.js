@@ -2,11 +2,11 @@ import { promises as fs, createWriteStream } from 'fs';
 import axios from 'axios';
 import path from 'path';
 import debug from 'debug';
+import { isBinary } from 'istextorbinary';
 import { parse } from 'url';
-import { getAllResoursesLinks, changeLink } from './page.js';
+import { getAllResourcesLinks, changeLink } from './page.js';
 
 require('axios-debug-log');
-
 
 const streamToFile = (inputStream, filePath) => new Promise((resolve, reject) => {
   const fileWriteStream = createWriteStream(filePath);
@@ -30,19 +30,10 @@ const generateName = (pageUrl, type = '_files') => {
   return name;
 };
 
-const getType = (url) => `.${url.split('.').slice(-1)[0]}`;
-const removeType = (url) => url.split('.').slice(0, -1).join('.');
-
-const isBinary = (url) => {
-  const binaryTypes = ['.css', '.js', '.png', '.jpg', '.jpeg', '.ico', '.svg', '.gif'];
-  const type = getType(url);
-  return binaryTypes.includes(type);
-};
-
-const makeurl = (pathname, base) => new URL(pathname, base).href;
-
 const downloadData = (http, url) => {
-  if (isBinary(url)) {
+  const { pathname } = parse(url);
+  const { base } = path.parse(pathname);
+  if (isBinary(base)) {
     return http({
       method: 'get',
       url,
@@ -52,56 +43,85 @@ const downloadData = (http, url) => {
   return http.get(url);
 };
 
+const getPageInformation = (page) => {
+  const { config: { baseURL }, data } = page;
+  const deb = debug('page-loader');
+  const paths = getAllResourcesLinks(data, baseURL);
+  const links = paths.map((p) => new URL(p, baseURL).href);
+  deb('Links to resources:');
+  links.map((link) => deb(link));
+  return { page, links };
+};
+
+const downloadResources = (http, { page, links }) => {
+  const resources = Promise.all(links.map((l) => downloadData(http, l)))
+    .catch(({ message, config: { url } }) => {
+      const errorMessage = `Can't download resource ${url} ${message}`;
+      throw new Error(errorMessage);
+    });
+  return { page, links, resources };
+};
+
+const makePageResourceLocal = (acc, url, folderName) => {
+  const { pathname } = parse(url);
+  const {
+    dir, base, name, ext,
+  } = path.parse(pathname);
+  const fileName = generateName(path.join(dir, name), ext);
+  const newLink = `./${path.join(folderName, fileName)}`;
+  return changeLink(acc, base, newLink);
+};
+
+const saveResource = (folderPath, { config: { url }, data }) => {
+  const deb = debug('page-loader');
+  const { pathname } = parse(url);
+  const { dir, name, ext } = path.parse(pathname);
+  const fileName = generateName(path.join(dir, name), ext);
+  const filePath = path.join(folderPath, fileName);
+  deb(`Document ${fileName}`);
+  deb(`Saved at ${filePath}`);
+  if (isBinary(fileName)) {
+    return streamToFile(data, filePath);
+  }
+  return fs.writeFile(filePath, data);
+};
+
+const savePage = (outputDirectory, { page, links, resources }) => {
+  const deb = debug('page-loader');
+  const pageSavePromises = [];
+  const { config: { baseURL }, data } = page;
+  const pageName = generateName(baseURL, '.html');
+  const pagePath = path.join(outputDirectory, pageName);
+  if (links.length === 0) {
+    pageSavePromises.push(fs.writeFile(pagePath, data));
+    return Promise.all(pageSavePromises);
+  }
+  const folderName = generateName(baseURL);
+  const localHtml = links.reduce(
+    (acc, link) => makePageResourceLocal(acc, link, folderName), data,
+  );
+  pageSavePromises.push(fs.writeFile(pagePath, localHtml));
+  const folderPath = path.join(outputDirectory, folderName);
+  pageSavePromises.push(fs.mkdir(folderPath));
+  deb(`Folder ${folderName} created`);
+  return resources.then((responses) => {
+    const resourceSavePromises = responses.map((res) => saveResource(folderPath, res));
+    return Promise.all([...pageSavePromises, ...resourceSavePromises])
+      .catch((error) => { throw new Error(`Can't save data at disc. ${error}`); });
+  });
+};
+
 const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
   const deb = debug('page-loader');
   const http = axios.create({
     baseURL,
     timeout: 5000,
   });
-  const pageData = downloadData(http, '/');
-  const pageResourses = pageData.then(({ data }) => {
-    const links = getAllResoursesLinks(data, baseURL);
-    deb(`Links found: ${links}`);
-    if (links.length === 0) {
-      return { html: data, resourses: [] };
-    }
-    const addresses = links.map((link) => makeurl(link, baseURL));
-    const resourses = Promise.all(addresses.map((address) => downloadData(http, address)));
-    return { html: data, resourses };
-  });
-  return pageResourses.then(({ html, resourses }) => {
-    const pageName = generateName(baseURL, '.html');
-    const pagePath = path.join(outputDirectory, pageName);
-    if (resourses.length === 0) {
-      return fs.writeFile(pagePath, html);
-    }
-    const folderName = generateName(baseURL);
-    const folderPath = path.join(outputDirectory, folderName);
-    const result = [];
-    result.push(fs.mkdir(folderPath));
-    resourses.then((responses) => {
-      const localHtml = responses.reduce((acc, { config: { url } }) => {
-        const { pathname } = parse(url);
-        const fileName = generateName(removeType(pathname), getType(pathname));
-        const newLink = `./${folderName}/${fileName}`;
-        return changeLink(acc, pathname, newLink);
-      }, html);
-      responses.forEach(({ config: { url }, data }) => {
-        const { pathname } = parse(url);
-        const fileName = generateName(removeType(pathname), getType(pathname));
-        const filePath = path.join(outputDirectory, folderName, fileName);
-        deb(`Document ${fileName}`);
-        deb(`Saved at ${filePath}`);
-        result.push(streamToFile(data, filePath));
-      });
-      deb(`Document ${pageName}`);
-      deb(`Saved at ${pagePath}`);
-      result.push(fs.writeFile(pagePath, localHtml));
-    });
-    return Promise.all(result).catch((err) => {
-      deb(err);
-      throw new Error(err);
-    });
-  });
+  const pageData = downloadData(http, baseURL);
+  deb(`Page ${baseURL} downloaded`);
+  const pageInformation = pageData.then(getPageInformation);
+  const pageResources = pageInformation.then((data) => downloadResources(http, data));
+  const savedPage = pageResources.then((data) => savePage(outputDirectory, data));
+  return savedPage;
 };
 export default pageLoad;

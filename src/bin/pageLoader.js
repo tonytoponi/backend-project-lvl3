@@ -9,5 +9,8 @@ app
   .option('-o, --output [directory]', 'output directory', process.cwd())
   .arguments('<url>')
   .description('Download web page to specified folder')
-  .action((url) => pageLoader(url, app.output))
+  .action((url) => pageLoader(url, app.output).catch((error) => {
+    console.error(error);
+    process.exit(1);
+  }))
   .parse(process.argv);

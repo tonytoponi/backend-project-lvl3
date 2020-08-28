@@ -18,12 +18,28 @@ const imageFiles = [
 ].map((imagePath) => path.join(process.cwd(), imagePath));
 let tempDirectory;
 
-describe('Page-load tests', () => {
+describe('Page-load positive tests', () => {
   beforeEach(async () => {
     tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), '/page-loader-'));
   });
+
   test(
-    'Should download page, resourses from page, and all links to local then request is correct',
+    'Should download to process.cwd() if output directory not set',
+    async () => {
+      const filePath = path.join(process.cwd(), 'tonytoponi-github-io.html');
+      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1></body></html>';
+      const scope = nock(url)
+        .get('/')
+        .reply(200, document);
+      await pageLoader(url);
+      expect(scope.isDone()).toBeTruthy();
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe(document);
+      await fs.unlink(filePath);
+    },
+  );
+
+  test(
+    'Should download page, resources from page, and all links to local then request is correct',
     async () => {
       const result = await fs.readFile(resultFilePath, 'utf-8');
       const script = await fs.readFile(testScriptFile, 'utf-8');
@@ -78,6 +94,63 @@ describe('Page-load tests', () => {
 
   afterEach(async () => {
     await fs.unlink(path.join(tempDirectory, 'tonytoponi-github-io.html'));
+    await rmdir(tempDirectory, (error) => error);
+  });
+});
+
+describe('Page-load negative cases', () => {
+  beforeEach(async () => {
+    tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), '/page-loader-'));
+  });
+
+  test(
+    'Should throw an error then resources directory already exists',
+    async () => {
+      const resourcesDirectoryPath = path.join(tempDirectory, 'tonytoponi-github-io_files');
+      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1><img src="./img/test.jpeg"/></body></html>';
+      const message = `Can't save data at disc. Error: EEXIST: file already exists, mkdir '${tempDirectory}/tonytoponi-github-io_files'`;
+      await fs.mkdir(resourcesDirectoryPath);
+      const scope = nock(url)
+        .get('/')
+        .reply(200, document)
+        .get('/img/test.jpeg')
+        .replyWithFile(200, imageFiles[0], {
+          'Content-Type': 'image/jpeg',
+        });
+      await expect(pageLoader(url, tempDirectory)).rejects.toThrow(message);
+      expect(scope.isDone()).toBeTruthy();
+    },
+  );
+
+  test(
+    'Should throw an error then target directory not exist',
+    async () => {
+      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1></body></html>';
+      const message = "Can't save data at disc. Error: ENOENT: no such file or directory, open '/tmp/boom/tonytoponi-github-io.html'";
+      const scope = nock(url)
+        .get('/')
+        .reply(200, document);
+      await expect(pageLoader(url, '/tmp/boom')).rejects.toThrow(message);
+      expect(scope.isDone()).toBeTruthy();
+    },
+  );
+
+  test(
+    'Should throw an error then resource not downloaded',
+    async () => {
+      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1><img src="./img/test.jpeg"/></body></html>';
+      const message = "Can't download resource https://tonytoponi.github.io/img/test.jpeg Request failed with status code 404";
+      const scope = nock(url)
+        .get('/')
+        .reply(200, document)
+        .get('/img/test.jpeg')
+        .reply(404);
+      await expect(pageLoader(url, tempDirectory)).rejects.toThrow(message);
+      expect(scope.isDone()).toBeTruthy();
+    },
+  );
+
+  afterEach(async () => {
     await rmdir(tempDirectory, (error) => error);
   });
 });
