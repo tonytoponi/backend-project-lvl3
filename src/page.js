@@ -8,11 +8,12 @@ const isResource = (link, address) => {
 export const getAllResourcesLinks = (html, address) => {
   const $ = cheerio.load(html);
   const links = [];
-  $('[src]').each((i, element) => {
-    links.push($(element).attr('src'));
-  });
-  $('[href]').each((i, element) => {
-    links.push($(element).attr('href'));
+  $('[src], [href]').each((i, element) => {
+    if ($(element).attr('src')) {
+      links.push($(element).attr('src'));
+    } else {
+      links.push($(element).attr('href'));
+    }
   });
   const localLinks = links.filter((link) => isResource(link, address) && link.includes('/'));
   return localLinks;

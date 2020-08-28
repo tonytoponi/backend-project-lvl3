@@ -18,6 +18,6 @@ test:
 test-coverage:
 	npm test -- --coverage
 watch:
-	DEBUG=axios,page-loader,nock.* npm run testWatch
+	DEBUG=page-loader npm run testWatch
 debug:
 	DEBUG=axios,page-loader,nock.* npx babel-node -- 'src/bin/pageLoader.js' https://tonytoponi.github.io/
