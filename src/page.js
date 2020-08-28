@@ -5,7 +5,7 @@ const isResource = (link, address) => {
   return href.includes(address);
 };
 
-export const getAllResoursesLinks = (html, address) => {
+export const getAllResourcesLinks = (html, address) => {
   const $ = cheerio.load(html);
   const links = [];
   $('[src], [href]').each((i, element) => {
@@ -15,9 +15,10 @@ export const getAllResoursesLinks = (html, address) => {
       links.push($(element).attr('href'));
     }
   });
-  const localLinks = links.filter((link) => isResource(link, address));
+  const localLinks = links.filter((link) => isResource(link, address) && link.includes('/'));
   return localLinks;
 };
+
 
 export const changeLink = (html, oldLink, newLink) => {
   const $ = cheerio.load(html);
