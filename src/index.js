@@ -106,8 +106,7 @@ const savePage = (outputDirectory, { page, links, resources }) => {
   deb(`Folder ${folderName} created`);
   return resources.then((responses) => {
     const resourceSavePromises = responses.map((res) => saveResource(folderPath, res));
-    return Promise.all([...pageSavePromises, ...resourceSavePromises])
-      .catch((error) => { throw new Error(`Can't save data at disc. ${error}`); });
+    return Promise.all([...pageSavePromises, ...resourceSavePromises]);
   });
 };
 
@@ -121,7 +120,8 @@ const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
   deb(`Page ${baseURL} downloaded`);
   const pageInformation = pageData.then(getPageInformation);
   const pageResources = pageInformation.then((data) => downloadResources(http, data));
-  const savedPage = pageResources.then((data) => savePage(outputDirectory, data));
+  const savedPage = pageResources.then((data) => savePage(outputDirectory, data))
+    .catch((error) => { throw new Error(`Can't save data at disc. ${error}`); });
   return savedPage;
 };
 export default pageLoad;

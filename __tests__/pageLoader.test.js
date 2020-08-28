@@ -93,7 +93,6 @@ describe('Page-load positive tests', () => {
   );
 
   afterEach(async () => {
-    await fs.unlink(path.join(tempDirectory, 'tonytoponi-github-io.html'));
     await rmdir(tempDirectory, (error) => error);
   });
 });
