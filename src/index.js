@@ -112,59 +112,6 @@ const savePage = (outputDirectory, { page, links, resources }) => {
 
 const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
   const deb = debug('page-loader');
-  const paths = getAllResoursesLinks(data, baseURL);
-  const links = paths.map((p) => new URL(p, baseURL).href);
-  deb(`Links to resourses ${links}`);
-  return { page, links };
-};
-
-const downloadResourses = (http, { page, links }) => {
-  const resourses = Promise.all(links.map((l) => downloadData(http, l)));
-  return { page, links, resourses };
-};
-
-const makePageResourseLocal = (acc, url, folderName) => {
-  const { pathname } = parse(url);
-  const fileName = generateName(removeType(pathname), getType(pathname));
-  const newLink = `./${path.join(folderName, fileName)}`;
-  return changeLink(acc, pathname, newLink);
-};
-
-const saveResourse = (folderPath, { config: { url }, data }) => {
-  const deb = debug('page-loader');
-  const { pathname } = parse(url);
-  const fileName = generateName(removeType(pathname), getType(pathname));
-  const filePath = path.join(folderPath, fileName);
-  deb(`Document ${fileName}`);
-  deb(`Saved at ${filePath}`);
-  return streamToFile(data, filePath);
-};
-
-const savePage = (outputDirectory, { page, links, resourses }) => {
-  const deb = debug('page-loader');
-  const pageSavePromises = [];
-  const { config: { baseURL }, data } = page;
-  const pageName = generateName(baseURL, '.html');
-  const pagePath = path.join(outputDirectory, pageName);
-  if (links.le<<<<<<< error-handlingngth === 0) {
-    pageSavePromises.push(fs.writeFile(pagePath, data));
-    return Promise.all(pageSavePromises);
-  }
-  const folderName = generateName(baseURL);
-  const localHtml = links.reduce(
-    (acc, link) => makePageResourseLocal(acc, link, folderName), data,
-  );
-  pageSavePromises.push(fs.writeFile(pagePath, localHtml));
-  const folderPath = path.join(outputDirectory, folderName);
-  pageSavePromises.push(fs.mkdir(folderPath));
-  deb(`Folder ${folderName} created`);
-  return resourses.then((responses) => {
-    const resourseSavePromises = responses.map((res) => saveResourse(folderPath, res));
-    return Promise.all([...pageSavePromises, ...resourseSavePromises]);
-  });
-};
-
-const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
   const http = axios.create({
     baseURL,
     timeout: 5000,
@@ -173,8 +120,8 @@ const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
   deb(`Page ${baseURL} downloaded`);
   const pageInformation = pageData.then(getPageInformation);
   const pageResources = pageInformation.then((data) => downloadResources(http, data));
-  const savedPage = pageResources.then((data) => savePage(outputDirectory, data))
+  const savedPage = pageResources.then((data) => savePage(outputDirectory, data));
+  return savedPage
     .catch((error) => { throw new Error(`Can't save data at disc. ${error}`); });
-  return savedPage;
 };
 export default pageLoad;
