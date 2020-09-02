@@ -2,6 +2,9 @@
 
 [![Test Coverage](https://api.codeclimate.com/v1/badges/56160bd0b6efafac6e1e/test_coverage)](https://codeclimate.com/github/tonytoponi/backend-project-lvl3/test_coverage)
 
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/tonytoponi/backend-project-lvl3/Node.js%20CI)
+
+
 ## How to use
 
 [![asciicast](https://asciinema.org/a/jpefrHFU7q0KwIuUSeB5hoq9K.svg)](https://asciinema.org/a/jpefrHFU7q0KwIuUSeB5hoq9K)
@@ -21,3 +24,7 @@ $ DEBUG=axios,page-loader,nock.* page-loader
 ## Error messages
 
 [![asciicast](https://asciinema.org/a/iKVEmA4Yyen6kR3Go2UUFtlYw.svg)](https://asciinema.org/a/iKVEmA4Yyen6kR3Go2UUFtlYw)
+
+## Progress visualization
+
+[![asciicast](https://asciinema.org/a/pvQKc0NAH3CTLCZfBgnNSv3GL.svg)](https://asciinema.org/a/pvQKc0NAH3CTLCZfBgnNSv3GL)

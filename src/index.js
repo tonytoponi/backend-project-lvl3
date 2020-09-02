@@ -3,10 +3,16 @@ import axios from 'axios';
 import path from 'path';
 import debug from 'debug';
 import { isBinary } from 'istextorbinary';
+import Listr from 'listr';
 import { parse } from 'url';
 import { getAllResourcesLinks, changeLink } from './page.js';
 
 require('axios-debug-log');
+
+const listrSettings = {
+  showSubtasks: true,
+  collapse: false,
+};
 
 const streamToFile = (inputStream, filePath) => new Promise((resolve, reject) => {
   const fileWriteStream = createWriteStream(filePath);
@@ -16,7 +22,7 @@ const streamToFile = (inputStream, filePath) => new Promise((resolve, reject) =>
     .on('error', reject);
 });
 
-const generateName = (pageUrl, type = '_files') => {
+const generateName = (pageUrl, type = '.html') => {
   const lastSymbol = /[/]$/gi;
   const firstSymbol = /^[/]/;
   const nonSymbolDigit = /[^a-z\d]/gi;
@@ -33,36 +39,54 @@ const generateName = (pageUrl, type = '_files') => {
 const downloadData = (http, url) => {
   const { pathname } = parse(url);
   const { base } = path.parse(pathname);
+  const handleError = ({ message }) => {
+    const errorMessage = `Can't download resource ${url} ${message}`;
+    throw new Error(errorMessage);
+  };
   if (isBinary(base)) {
     return http({
       method: 'get',
       url,
       responseType: 'stream',
-    });
+    }).catch(handleError);
   }
-  return http.get(url);
+  return http.get(url).catch(handleError);
 };
 
-const getPageInformation = (page) => {
-  const { config: { baseURL }, data } = page;
+const saveFile = ({ config: { baseURL, url }, data }, folderPath) => {
   const deb = debug('page-loader');
-  const paths = getAllResourcesLinks(data, baseURL);
-  const links = paths.map((p) => new URL(p, baseURL).href);
-  deb('Links to resources:');
-  links.map((link) => deb(link));
-  return { page, links };
+  const handleError = (error) => { throw new Error(`Can't save data at disc. ${error}`); };
+  const { pathname } = parse(url);
+  const { dir, name, ext } = path.parse(pathname);
+  const fileName = ext.length === 0 ? generateName(baseURL)
+    : generateName(path.join(dir, name), ext);
+  const filePath = path.join(folderPath, fileName);
+  deb(`Document ${fileName}`);
+  deb(`Saved at ${filePath}`);
+  if (isBinary(fileName)) {
+    return streamToFile(data, filePath).catch(handleError);
+  }
+  return fs.writeFile(filePath, data).catch(handleError);
 };
 
-const downloadResources = (http, { page, links }) => {
-  const resources = Promise.all(links.map((l) => downloadData(http, l)))
-    .catch(({ message, config: { url } }) => {
-      const errorMessage = `Can't download resource ${url} ${message}`;
-      throw new Error(errorMessage);
-    });
-  return { page, links, resources };
+const getPageInformation = (response) => {
+  const { config: { baseURL }, data } = response;
+  const deb = debug('page-loader');
+  const links = getAllResourcesLinks(data, baseURL);
+  const urls = links.map((p) => new URL(p, baseURL).href);
+  deb('URLs to resources:', urls.map((url) => deb(url)));
+  return { response, urls };
 };
 
-const makePageResourceLocal = (acc, url, folderName) => {
+const downloadResources = (http, urls) => {
+  const resourcesTasks = new Listr(urls.map((url) => ({
+    title: `Download ${url}`,
+    task: (ctx) => ctx.requests.push(downloadData(http, url)),
+  })), { concurrent: true });
+  return resourcesTasks;
+};
+
+const changePageLinkToLocal = (acc, url, folderName) => {
   const { pathname } = parse(url);
   const {
     dir, base, name, ext,
@@ -72,56 +96,58 @@ const makePageResourceLocal = (acc, url, folderName) => {
   return changeLink(acc, base, newLink);
 };
 
-const saveResource = (folderPath, { config: { url }, data }) => {
-  const deb = debug('page-loader');
-  const { pathname } = parse(url);
-  const { dir, name, ext } = path.parse(pathname);
-  const fileName = generateName(path.join(dir, name), ext);
-  const filePath = path.join(folderPath, fileName);
-  deb(`Document ${fileName}`);
-  deb(`Saved at ${filePath}`);
-  if (isBinary(fileName)) {
-    return streamToFile(data, filePath);
-  }
-  return fs.writeFile(filePath, data);
-};
-
-const savePage = (outputDirectory, { page, links, resources }) => {
+const savePage = (outputDirectory, response, urls, resources) => {
   const deb = debug('page-loader');
   const pageSavePromises = [];
-  const { config: { baseURL }, data } = page;
-  const pageName = generateName(baseURL, '.html');
-  const pagePath = path.join(outputDirectory, pageName);
-  if (links.length === 0) {
-    pageSavePromises.push(fs.writeFile(pagePath, data));
+  if (urls.length === 0) {
+    pageSavePromises.push(saveFile(response, outputDirectory));
     return Promise.all(pageSavePromises);
   }
-  const folderName = generateName(baseURL);
-  const localHtml = links.reduce(
-    (acc, link) => makePageResourceLocal(acc, link, folderName), data,
+  const folderName = generateName(response.config.baseURL, '_files');
+  const localHtml = urls.reduce(
+    (acc, url) => changePageLinkToLocal(acc, url, folderName), response.data,
   );
-  pageSavePromises.push(fs.writeFile(pagePath, localHtml));
+  pageSavePromises.push(saveFile({ ...response, data: localHtml }, outputDirectory));
   const folderPath = path.join(outputDirectory, folderName);
-  pageSavePromises.push(fs.mkdir(folderPath));
+  pageSavePromises.push(fs.mkdir(folderPath).catch((error) => { throw new Error(`Can't make folder. ${error}`); }));
   deb(`Folder ${folderName} created`);
   return resources.then((responses) => {
-    const resourceSavePromises = responses.map((res) => saveResource(folderPath, res));
+    const resourceSavePromises = responses.map(
+      (res) => saveFile(res, folderPath),
+    );
     return Promise.all([...pageSavePromises, ...resourceSavePromises]);
   });
 };
 
 const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
-  const deb = debug('page-loader');
   const http = axios.create({
     baseURL,
     timeout: 5000,
   });
-  const pageData = downloadData(http, baseURL);
-  deb(`Page ${baseURL} downloaded`);
-  const pageInformation = pageData.then(getPageInformation);
-  const pageResources = pageInformation.then((data) => downloadResources(http, data));
-  const savedPage = pageResources.then((data) => savePage(outputDirectory, data));
-  return savedPage
-    .catch((error) => { throw new Error(`Can't save data at disc. ${error}`); });
+  const tasks = [
+    {
+      title: 'Download page data',
+      task: (ctx) => { ctx.pageData = downloadData(http, baseURL); },
+    },
+    {
+      title: 'Get resources links',
+      task: (ctx) => { ctx.pageInformation = ctx.pageData.then(getPageInformation); },
+    },
+    {
+      title: 'Download resources',
+      task: (ctx) => ctx.pageInformation.then(({ urls }) => downloadResources(http, urls)),
+    },
+    {
+      title: 'Save page and resources at disc',
+      task: (ctx) => {
+        ctx.savedPage = ctx.pageInformation.then(({ response, urls }) => {
+          const resources = Promise.all(ctx.requests);
+          return savePage(outputDirectory, response, urls, resources);
+        });
+      },
+    },
+  ];
+  return new Listr(tasks, listrSettings)
+    .run({ requests: [] }).then(({ savedPage }) => savedPage);
 };
 export default pageLoad;

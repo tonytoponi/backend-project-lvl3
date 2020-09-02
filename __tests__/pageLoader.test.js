@@ -107,7 +107,7 @@ describe('Page-load negative cases', () => {
     async () => {
       const resourcesDirectoryPath = path.join(tempDirectory, 'tonytoponi-github-io_files');
       const document = '<!DOCTYPE html><html><body><h1>Hello World</h1><img src="./img/test.jpeg"/></body></html>';
-      const message = `Can't save data at disc. Error: EEXIST: file already exists, mkdir '${tempDirectory}/tonytoponi-github-io_files'`;
+      const message = `Can't make folder. Error: EEXIST: file already exists, mkdir '${tempDirectory}/tonytoponi-github-io_files'`;
       await fs.mkdir(resourcesDirectoryPath);
       const scope = nock(url)
         .get('/')
