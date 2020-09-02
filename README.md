@@ -21,3 +21,7 @@ $ DEBUG=axios,page-loader,nock.* page-loader
 ## Error messages
 
 [![asciicast](https://asciinema.org/a/iKVEmA4Yyen6kR3Go2UUFtlYw.svg)](https://asciinema.org/a/iKVEmA4Yyen6kR3Go2UUFtlYw)
+
+## Progress visualization
+
+[![asciicast](https://asciinema.org/a/pvQKc0NAH3CTLCZfBgnNSv3GL.svg)](https://asciinema.org/a/pvQKc0NAH3CTLCZfBgnNSv3GL)

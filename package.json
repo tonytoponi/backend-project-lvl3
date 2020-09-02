@@ -42,6 +42,7 @@
     "commander": "^5.0.0",
     "debug": "^4.1.1",
     "istextorbinary": "^5.10.0",
+    "listr": "^0.14.3",
     "lodash": "^4.17.14"
   },
   "devDependencies": {
