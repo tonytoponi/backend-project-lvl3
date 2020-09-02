@@ -2,7 +2,7 @@
 
 [![Test Coverage](https://api.codeclimate.com/v1/badges/56160bd0b6efafac6e1e/test_coverage)](https://codeclimate.com/github/tonytoponi/backend-project-lvl3/test_coverage)
 
-(https://img.shields.io/github/workflow/status/tonytoponi/backend-project-lvl3/Node.js%20CI)
+[(https://img.shields.io/github/workflow/status/tonytoponi/backend-project-lvl3/Node.js%20CI)]
 
 
 ## How to use
