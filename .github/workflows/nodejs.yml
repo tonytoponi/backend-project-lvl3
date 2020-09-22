@@ -25,6 +25,7 @@ jobs:
         make build  
       env:
         CI: true
+        CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
     - name: Run linter
       run: |
           make lint
