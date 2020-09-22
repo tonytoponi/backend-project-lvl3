@@ -10,6 +10,7 @@ import { getAllResourcesLinks, changeLink } from './page.js';
 require('axios-debug-log');
 
 const listrSettings = {
+  concurrent: true,
   showSubtasks: true,
   collapse: false,
 };
@@ -39,18 +40,17 @@ const generateName = (pageUrl, type = '.html') => {
 const downloadData = (http, url) => {
   const { pathname } = parse(url);
   const { base } = path.parse(pathname);
+  const responseType = isBinary(base) ? 'stream' : 'json';
+  const config = {
+    method: 'get',
+    url,
+    responseType,
+  };
   const handleError = ({ message }) => {
     const errorMessage = `Can't download resource ${url} ${message}`;
     throw new Error(errorMessage);
   };
-  if (isBinary(base)) {
-    return http({
-      method: 'get',
-      url,
-      responseType: 'stream',
-    }).catch(handleError);
-  }
-  return http.get(url).catch(handleError);
+  return http(config).catch(handleError);
 };
 
 const saveFile = ({ config: { baseURL, url }, data }, folderPath) => {
@@ -82,8 +82,8 @@ const downloadResources = (http, urls) => {
   const resourcesTasks = new Listr(urls.map((url) => ({
     title: `Download ${url}`,
     task: (ctx) => ctx.requests.push(downloadData(http, url)),
-  })), { concurrent: true });
-  return resourcesTasks;
+  })), listrSettings);
+  return resourcesTasks.run({ requests: [] });
 };
 
 const changePageLinkToLocal = (acc, url, folderName) => {
@@ -119,35 +119,18 @@ const savePage = (outputDirectory, response, urls, resources) => {
   });
 };
 
-const pageLoad = (baseURL, outputDirectory = process.cwd()) => {
+const loadPage = (baseURL, outputDirectory = process.cwd()) => {
   const http = axios.create({
     baseURL,
     timeout: 5000,
   });
-  const tasks = [
-    {
-      title: 'Download page data',
-      task: (ctx) => { ctx.pageData = downloadData(http, baseURL); },
-    },
-    {
-      title: 'Get resources links',
-      task: (ctx) => { ctx.pageInformation = ctx.pageData.then(getPageInformation); },
-    },
-    {
-      title: 'Download resources',
-      task: (ctx) => ctx.pageInformation.then(({ urls }) => downloadResources(http, urls)),
-    },
-    {
-      title: 'Save page and resources at disc',
-      task: (ctx) => {
-        ctx.savedPage = ctx.pageInformation.then(({ response, urls }) => {
-          const resources = Promise.all(ctx.requests);
-          return savePage(outputDirectory, response, urls, resources);
-        });
-      },
-    },
-  ];
-  return new Listr(tasks, listrSettings)
-    .run({ requests: [] }).then(({ savedPage }) => savedPage);
+  const pageData = downloadData(http, baseURL);
+  const pageInformation = pageData.then(getPageInformation);
+  const downloadPromise = pageInformation.then(({ urls }) => downloadResources(http, urls));
+  const savedPage = pageInformation.then(({ response, urls }) => {
+    const resources = downloadPromise.then(({ requests }) => Promise.all(requests));
+    return savePage(outputDirectory, response, urls, resources);
+  });
+  return savedPage;
 };
-export default pageLoad;
+export default loadPage;
