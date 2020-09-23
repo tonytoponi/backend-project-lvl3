@@ -69,13 +69,12 @@ const saveFile = ({ config: { baseURL, url }, data }, folderPath) => {
   return fs.writeFile(filePath, data).catch(handleError);
 };
 
-const getPageInformation = (response) => {
-  const { config: { baseURL }, data } = response;
+const getPageLinks = (page, baseURL) => {
   const deb = debug('page-loader');
-  const links = getAllResourcesLinks(data, baseURL);
+  const links = getAllResourcesLinks(page, baseURL);
   const urls = links.map((p) => new URL(p, baseURL).href);
   deb('URLs to resources:', urls.map((url) => deb(url)));
-  return { response, urls };
+  return urls;
 };
 
 const downloadResources = (http, urls) => {
@@ -124,12 +123,17 @@ const loadPage = (baseURL, outputDirectory = process.cwd()) => {
     baseURL,
     timeout: 5000,
   });
-  const pageData = downloadData(http, baseURL);
-  const pageInformation = pageData.then(getPageInformation);
-  const downloadPromise = pageInformation.then(({ urls }) => downloadResources(http, urls));
-  const savedPage = pageInformation.then(({ response, urls }) => {
+  const response = downloadData(http, baseURL);
+  let pageData;
+  const pageLinks = response.then((res) => {
+    pageData = res;
+    const { data } = res;
+    return getPageLinks(data, baseURL);
+  });
+  const downloadPromise = pageLinks.then((urls) => downloadResources(http, urls));
+  const savedPage = pageLinks.then((urls) => {
     const resources = downloadPromise.then(({ requests }) => Promise.all(requests));
-    return savePage(outputDirectory, response, urls, resources);
+    return savePage(outputDirectory, pageData, urls, resources);
   });
   return savedPage;
 };
