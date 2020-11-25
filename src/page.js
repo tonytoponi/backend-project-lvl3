@@ -31,12 +31,12 @@ const actions = [
 ];
 
 const processPage = (html, folderName) => {
-  // log(html);
+  log(html);
   const current = {
     resources: [],
     $: cheerio.load(html),
   };
-  // log(current.$.html());
+  log(current.$.html());
   current.$('[src], [href]').each((_i, element) => {
     const { get, change } = actions.find(({ check }) => check(current.$, element));
     const link = get(current.$, element);
