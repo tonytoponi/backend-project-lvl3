@@ -1,28 +1,55 @@
 import cheerio from 'cheerio';
+import debug from 'debug';
+import path from 'path';
+import { parse } from 'url';
+import { generateFileName } from './localNameGenerators';
 
-const isResource = (link, address) => {
-  const { href } = new URL(link, address);
-  return href.includes(address);
+const log = debug('page-loader');
+
+const isLocal = (link) => {
+  const { host } = parse(link);
+  return !host;
 };
 
-export const getAllResourcesLinks = (html, address) => {
-  const $ = cheerio.load(html);
-  const links = [];
-  $('[src], [href]').each((i, element) => {
-    if ($(element).attr('src')) {
-      links.push($(element).attr('src'));
-    } else {
-      links.push($(element).attr('href'));
+const actions = [
+  {
+    check: ($, element) => !!$(element).attr('src'),
+    get: ($, element) => $(element).attr('src'),
+    change: ($, element, localPath) => {
+      $(element).attr('src', localPath);
+      return $;
+    },
+  },
+  {
+    check: ($, element) => !!$(element).attr('href'),
+    get: ($, element) => $(element).attr('href'),
+    change: (($, element, localPath) => {
+      $(element).attr('href', localPath);
+      return $;
+    }),
+  },
+];
+
+const processPage = (html, folderName) => {
+  // log(html);
+  const current = {
+    resources: [],
+    $: cheerio.load(html),
+  };
+  // log(current.$.html());
+  current.$('[src], [href]').each((_i, element) => {
+    const { get, change } = actions.find(({ check }) => check(current.$, element));
+    const link = get(current.$, element);
+    if (isLocal(link)) {
+      const localFileName = generateFileName(link);
+      const localFilePath = `./${path.join(folderName, localFileName)}`;
+      current.$ = change(current.$, element, localFilePath);
+      current.resources = [...current.resources, { link, localFilePath }];
+      // log(current.$.html());
     }
   });
-  const localLinks = links.filter((link) => isResource(link, address) && link.includes('/'));
-  return localLinks;
+  const { resources, $ } = current;
+  return { html: $.html(), resources };
 };
 
-
-export const changeLink = (html, oldLink, newLink) => {
-  const $ = cheerio.load(html);
-  $(`*[src*="${oldLink}"]`).attr('src', newLink);
-  $(`*[href*="${oldLink}"]`).attr('href', newLink);
-  return $.html();
-};
+export default processPage;

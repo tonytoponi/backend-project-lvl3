@@ -16,14 +16,15 @@ const resultFilePath = getFixturePath('resultIndex.html');
 const testScriptPath = getFixturePath('javascript/index.js');
 const testStylesPath = getFixturePath('styles/styles.css');
 const imagePaths = [
-  'img/photo-1594667447546-9a7094a69663.jpeg',
-  'img/photo-1595181271233-35297004788d.jpeg',
-  'img/photo-1595296647731-432e76106504.jpeg',
-  'img/photo-1595831229176-ab024bc68fe9.jpeg',
+  'img/photo-1594667447546-9a7094a69663.png',
+  'img/photo-1595181271233-35297004788d.png',
+  'img/photo-1595296647731-432e76106504.png',
+  'img/photo-1595831229176-ab024bc68fe9.png',
 ].map(getFixturePath);
 
 
 describe('Page-load tests', () => {
+  jest.setTimeout(20000);
   beforeEach(async () => {
     tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), '/page-loader-'));
   });
@@ -32,7 +33,7 @@ describe('Page-load tests', () => {
     'Should download to current work directory if output directory not set',
     async () => {
       const filePath = path.join(process.cwd(), 'tonytoponi-github-io.html');
-      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1></body></html>';
+      const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
       const scope = nock(url)
         .get('/')
         .reply(200, document);
@@ -59,19 +60,19 @@ describe('Page-load tests', () => {
         .replyWithFile(200, testStylesPath, {
           'Content-Type': 'text/css',
         })
-        .get('/img/photo-1594667447546-9a7094a69663.jpeg')
+        .get('/img/photo-1594667447546-9a7094a69663.png')
         .replyWithFile(200, imagePaths[0], {
           'Content-Type': 'image/jpeg',
         })
-        .get('/img/photo-1595181271233-35297004788d.jpeg')
+        .get('/img/photo-1595181271233-35297004788d.png')
         .replyWithFile(200, imagePaths[1], {
           'Content-Type': 'image/jpeg',
         })
-        .get('/img/photo-1595296647731-432e76106504.jpeg')
+        .get('/img/photo-1595296647731-432e76106504.png')
         .replyWithFile(200, imagePaths[2], {
           'Content-Type': 'image/jpeg',
         })
-        .get('/img/photo-1595831229176-ab024bc68fe9.jpeg')
+        .get('/img/photo-1595831229176-ab024bc68fe9.png')
         .replyWithFile(200, imagePaths[3], {
           'Content-Type': 'image/jpeg',
         });
@@ -81,16 +82,16 @@ describe('Page-load tests', () => {
       const tempScriptPath = getTempFilePath('tonytoponi-github-io_files/javascript-index.js');
       const tempStylePath = getTempFilePath('tonytoponi-github-io_files/styles-styles.css');
       const tempImages = [
-        'tonytoponi-github-io_files/img-photo-1594667447546-9a7094a69663.jpeg',
-        'tonytoponi-github-io_files/img-photo-1595181271233-35297004788d.jpeg',
-        'tonytoponi-github-io_files/img-photo-1595296647731-432e76106504.jpeg',
-        'tonytoponi-github-io_files/img-photo-1595831229176-ab024bc68fe9.jpeg',
+        'tonytoponi-github-io_files/img-photo-1594667447546-9a7094a69663.png',
+        'tonytoponi-github-io_files/img-photo-1595181271233-35297004788d.png',
+        'tonytoponi-github-io_files/img-photo-1595296647731-432e76106504.png',
+        'tonytoponi-github-io_files/img-photo-1595831229176-ab024bc68fe9.png',
       ].map(getTempFilePath);
       await expect(readFile(tempFilePath, 'utf-8')).resolves.toBe(await readFile(resultFilePath));
       await expect(readFile(tempScriptPath, 'utf-8')).resolves.toBe(await readFile(testScriptPath));
       await expect(readFile(tempStylePath, 'utf-8')).resolves.toBe(await readFile(testStylesPath));
-      tempImages.map(async (image, i) => expect(readFile(image))
-        .resolves.toStrictEqual(await readFile(imagePaths[i])));
+      tempImages.map(async (image, i) => expect(await readFile(image))
+        .toEqual(await readFile(imagePaths[i])));
     },
   );
 
@@ -98,16 +99,12 @@ describe('Page-load tests', () => {
     'Should throw an error then resources directory already exists',
     async () => {
       const resourcesDirectoryPath = getTempFilePath('tonytoponi-github-io_files');
-      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1><img src="./img/test.jpeg"/></body></html>';
+      const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1><img src="./img/test.png"/></body></html>';
       const message = `Can't make folder. Error: EEXIST: file already exists, mkdir '${tempDirectory}/tonytoponi-github-io_files'`;
       await fs.mkdir(resourcesDirectoryPath);
       const scope = nock(url)
         .get('/')
-        .reply(200, document)
-        .get('/img/test.jpeg')
-        .replyWithFile(200, imagePaths[0], {
-          'Content-Type': 'image/jpeg',
-        });
+        .reply(200, document);
       await expect(loadPage(url, tempDirectory)).rejects.toThrow(message);
       expect(scope.isDone()).toBeTruthy();
     },
@@ -116,7 +113,7 @@ describe('Page-load tests', () => {
   test(
     'Should throw an error then target directory not exist',
     async () => {
-      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1></body></html>';
+      const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
       const message = "Can't save data at disc. Error: ENOENT: no such file or directory, open '/tmp/boom/tonytoponi-github-io.html'";
       const scope = nock(url)
         .get('/')
@@ -127,15 +124,13 @@ describe('Page-load tests', () => {
   );
 
   test(
-    'Should throw an error then resource not downloaded',
+    'Should throw an error then page not accessible',
     async () => {
-      const document = '<!DOCTYPE html><html><body><h1>Hello World</h1><img src="./img/test.jpeg"/></body></html>';
-      const message = "Can't download resource https://tonytoponi.github.io/img/test.jpeg Request failed with status code 404";
+      const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
+      const message = "Can't download resource https://tonytoponi.github.io Request failed with status code 404";
       const scope = nock(url)
         .get('/')
-        .reply(200, document)
-        .get('/img/test.jpeg')
-        .reply(404);
+        .reply(404, document);
       await expect(loadPage(url, tempDirectory)).rejects.toThrow(message);
       expect(scope.isDone()).toBeTruthy();
     },

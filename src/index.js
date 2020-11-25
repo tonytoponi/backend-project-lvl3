@@ -1,13 +1,12 @@
-import { promises as fs, createWriteStream } from 'fs';
 import axios from 'axios';
-import path from 'path';
 import debug from 'debug';
-import { isBinary } from 'istextorbinary';
+import path from 'path';
 import Listr from 'listr';
-import { parse } from 'url';
-import { getAllResourcesLinks, changeLink } from './page.js';
+import { promises as fs } from 'fs';
+import processPage from './page';
+import { generatePageName, generateFolderName } from './localNameGenerators';
 
-require('axios-debug-log');
+const log = debug('page-loader');
 
 const listrSettings = {
   concurrent: true,
@@ -15,126 +14,75 @@ const listrSettings = {
   collapse: false,
 };
 
-const streamToFile = (inputStream, filePath) => new Promise((resolve, reject) => {
-  const fileWriteStream = createWriteStream(filePath);
-  inputStream
-    .pipe(fileWriteStream)
-    .on('finish', resolve)
-    .on('error', reject);
+const saveFile = (filePath, data) => fs.writeFile(filePath, data)
+  .catch((error) => { throw new Error(`Can't save data at disc. ${error}`); });
+
+const streamToBuffer = ({ data: inputStream }) => new Promise((resolve, reject) => {
+  const chunks = [];
+  inputStream.on('data', (chunk) => chunks.push(chunk));
+  inputStream.once('end', () => resolve(Buffer.concat(chunks)));
+  inputStream.once('error', (error) => reject(new Error(`Can't download resource ${error}`)));
 });
 
-const generateName = (pageUrl, type = '.html') => {
-  const lastSymbol = /[/]$/gi;
-  const firstSymbol = /^[/]/;
-  const nonSymbolDigit = /[^a-z\d]/gi;
-  const { hostname, pathname } = parse(pageUrl);
-  if (hostname) {
-    const pageLocation = hostname.concat(pathname);
-    const name = pageLocation.replace(lastSymbol, '').replace(nonSymbolDigit, '-').concat(type);
-    return name;
-  }
-  const name = pathname.replace(firstSymbol, '').replace(lastSymbol, '').replace(nonSymbolDigit, '-').concat(type);
-  return name;
-};
-
-const downloadData = (http, url) => {
-  const { pathname } = parse(url);
-  const { base } = path.parse(pathname);
-  const responseType = isBinary(base) ? 'stream' : 'json';
+const sendGetRequest = (http, url) => {
   const config = {
     method: 'get',
     url,
-    responseType,
+    responseType: 'stream',
   };
-  const handleError = ({ message }) => {
+  const riseError = ({ message }) => {
     const errorMessage = `Can't download resource ${url} ${message}`;
     throw new Error(errorMessage);
   };
-  return http(config).catch(handleError);
+  return http(config).catch(riseError);
 };
 
-const saveFile = ({ config: { baseURL, url }, data }, folderPath) => {
-  const deb = debug('page-loader');
-  const handleError = (error) => { throw new Error(`Can't save data at disc. ${error}`); };
-  const { pathname } = parse(url);
-  const { dir, name, ext } = path.parse(pathname);
-  const fileName = ext.length === 0 ? generateName(baseURL)
-    : generateName(path.join(dir, name), ext);
-  const filePath = path.join(folderPath, fileName);
-  deb(`Document ${fileName}`);
-  deb(`Saved at ${filePath}`);
-  if (isBinary(fileName)) {
-    return streamToFile(data, filePath).catch(handleError);
-  }
-  return fs.writeFile(filePath, data).catch(handleError);
-};
+const downloadFile = (http, { url, pathToFile }) => sendGetRequest(http, url)
+  .then(streamToBuffer)
+  .then((buffer) => saveFile(pathToFile, buffer));
 
-const getPageLinks = (page, baseURL) => {
-  const deb = debug('page-loader');
-  const links = getAllResourcesLinks(page, baseURL);
-  const urls = links.map((p) => new URL(p, baseURL).href);
-  deb('URLs to resources:', urls.map((url) => deb(url)));
-  return urls;
-};
-
-const downloadResources = (http, urls) => {
-  const resourcesTasks = new Listr(urls.map((url) => ({
-    title: `Download ${url}`,
-    task: (ctx) => ctx.requests.push(downloadData(http, url)),
+const downloadResources = (http, fileData) => {
+  const resourcesTasks = new Listr(fileData.map((data) => ({
+    title: `Download ${data.url}`,
+    task: () => downloadFile(http, data),
   })), listrSettings);
-  return resourcesTasks.run({ requests: [] });
+  return resourcesTasks.run();
 };
 
-const changePageLinkToLocal = (acc, url, folderName) => {
-  const { pathname } = parse(url);
-  const {
-    dir, base, name, ext,
-  } = path.parse(pathname);
-  const fileName = generateName(path.join(dir, name), ext);
-  const newLink = `./${path.join(folderName, fileName)}`;
-  return changeLink(acc, base, newLink);
+const makeFolder = (folderPath) => {
+  const riseError = (error) => { throw new Error(`Can't make folder. ${error}`); };
+  return fs.mkdir(folderPath).catch(riseError);
 };
 
-const savePage = (outputDirectory, response, urls, resources) => {
-  const deb = debug('page-loader');
-  const pageSavePromises = [];
-  if (urls.length === 0) {
-    pageSavePromises.push(saveFile(response, outputDirectory));
-    return Promise.all(pageSavePromises);
-  }
-  const folderName = generateName(response.config.baseURL, '_files');
-  const localHtml = urls.reduce(
-    (acc, url) => changePageLinkToLocal(acc, url, folderName), response.data,
-  );
-  pageSavePromises.push(saveFile({ ...response, data: localHtml }, outputDirectory));
-  const folderPath = path.join(outputDirectory, folderName);
-  pageSavePromises.push(fs.mkdir(folderPath).catch((error) => { throw new Error(`Can't make folder. ${error}`); }));
-  deb(`Folder ${folderName} created`);
-  return resources.then((responses) => {
-    const resourceSavePromises = responses.map(
-      (res) => saveFile(res, folderPath),
-    );
-    return Promise.all([...pageSavePromises, ...resourceSavePromises]);
-  });
-};
+const createFileData = (resources, baseURL, dir) => resources.map(({ link, localFilePath }) => ({
+  url: new URL(link, baseURL).href,
+  pathToFile: path.join(dir, localFilePath),
+}));
 
 const loadPage = (baseURL, outputDirectory = process.cwd()) => {
   const http = axios.create({
     baseURL,
-    timeout: 5000,
+    timeout: 20000,
   });
-  const response = downloadData(http, baseURL);
-  let pageData;
-  const pageLinks = response.then((res) => {
-    pageData = res;
-    const { data } = res;
-    return getPageLinks(data, baseURL);
-  });
-  const downloadPromise = pageLinks.then((urls) => downloadResources(http, urls));
-  const savedPage = pageLinks.then((urls) => {
-    const resources = downloadPromise.then(({ requests }) => Promise.all(requests));
-    return savePage(outputDirectory, pageData, urls, resources);
-  });
-  return savedPage;
+  const localPageName = generatePageName(baseURL);
+  const localPagePath = path.join(outputDirectory, localPageName);
+  const folderName = generateFolderName(baseURL);
+  const folderPath = path.join(outputDirectory, folderName);
+  log(localPagePath);
+  log(folderPath);
+  return sendGetRequest(http, baseURL)
+    .then(streamToBuffer)
+    .then((buffer) => processPage(buffer.toString('utf-8'), folderName))
+    .then(({ html, resources }) => {
+      if (resources.length === 0) {
+        return saveFile(localPagePath, html);
+      }
+      const fileData = createFileData(resources, baseURL, outputDirectory);
+      log(fileData);
+      return saveFile(localPagePath, html)
+        .then(() => makeFolder(folderPath))
+        .then(() => downloadResources(http, fileData));
+    });
 };
+
 export default loadPage;
