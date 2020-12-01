@@ -50,8 +50,8 @@ const downloadResources = (http, fileData) => {
 };
 
 const makeFolder = (folderPath) => {
-  const riseError = (error) => { throw new Error(`Can't make folder. ${error}`); };
-  return fs.mkdir(folderPath).catch(riseError);
+  const raiseError = (error) => { throw new Error(`Can't make folder. ${error}`); };
+  return fs.mkdir(folderPath).catch(raiseError);
 };
 
 const createFileData = (resources, baseURL, dir) => resources.map(({ link, localFilePath }) => ({
@@ -62,7 +62,6 @@ const createFileData = (resources, baseURL, dir) => resources.map(({ link, local
 const loadPage = (baseURL, outputDirectory = process.cwd()) => {
   const http = axios.create({
     baseURL,
-    timeout: 20000,
   });
   const localPageName = generatePageName(baseURL);
   const localPagePath = path.join(outputDirectory, localPageName);

@@ -11,44 +11,29 @@ const isLocal = (link) => {
   return !host;
 };
 
-const actions = [
-  {
-    check: ($, element) => !!$(element).attr('src'),
-    get: ($, element) => $(element).attr('src'),
-    change: ($, element, localPath) => {
-      $(element).attr('src', localPath);
-      return $;
-    },
-  },
-  {
-    check: ($, element) => !!$(element).attr('href'),
-    get: ($, element) => $(element).attr('href'),
-    change: (($, element, localPath) => {
-      $(element).attr('href', localPath);
-      return $;
-    }),
-  },
-];
+const selectors = {
+  link: 'href',
+  script: 'src',
+  img: 'src',
+  video: 'src',
+};
 
 const processPage = (html, folderName) => {
   log(html);
-  const current = {
-    resources: [],
-    $: cheerio.load(html),
-  };
-  log(current.$.html());
-  current.$('[src], [href]').each((_i, element) => {
-    const { get, change } = actions.find(({ check }) => check(current.$, element));
-    const link = get(current.$, element);
+  const $ = cheerio.load(html);
+  const resources = [];
+  log($.html());
+  $('[src], [href]').each((_i, element) => {
+    const { name } = element;
+    const selector = selectors[name];
+    const link = $(element).attr(selector);
     if (isLocal(link)) {
       const localFileName = generateFileName(link);
       const localFilePath = `./${path.join(folderName, localFileName)}`;
-      current.$ = change(current.$, element, localFilePath);
-      current.resources = [...current.resources, { link, localFilePath }];
-      // log(current.$.html());
+      $(element).attr(selector, localFilePath);
+      resources.push({ link, localFilePath });
     }
   });
-  const { resources, $ } = current;
   return { html: $.html(), resources };
 };
 

@@ -24,7 +24,6 @@ const imagePaths = [
 
 
 describe('Page-load tests', () => {
-  jest.setTimeout(20000);
   beforeEach(async () => {
     tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), '/page-loader-'));
   });
@@ -34,11 +33,10 @@ describe('Page-load tests', () => {
     async () => {
       const filePath = path.join(process.cwd(), 'tonytoponi-github-io.html');
       const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
-      const scope = nock(url)
+      nock(url)
         .get('/')
         .reply(200, document);
       await loadPage(url);
-      expect(scope.isDone()).toBeTruthy();
       await expect(readFile(filePath)).resolves.toBe(document);
       await fs.unlink(filePath);
     },
@@ -47,7 +45,7 @@ describe('Page-load tests', () => {
   test(
     'Should download page, resources from page, and all links to local then request is correct',
     async () => {
-      const scope = nock(url)
+      nock(url)
         .get('/')
         .replyWithFile(200, testFilePath, {
           'Content-Type': 'text/html',
@@ -77,7 +75,6 @@ describe('Page-load tests', () => {
           'Content-Type': 'image/jpeg',
         });
       await loadPage(url, tempDirectory);
-      expect(scope.isDone()).toBeTruthy();
       const tempFilePath = getTempFilePath('tonytoponi-github-io.html');
       const tempScriptPath = getTempFilePath('tonytoponi-github-io_files/javascript-index.js');
       const tempStylePath = getTempFilePath('tonytoponi-github-io_files/styles-styles.css');
@@ -102,11 +99,10 @@ describe('Page-load tests', () => {
       const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1><img src="./img/test.png"/></body></html>';
       const message = `Can't make folder. Error: EEXIST: file already exists, mkdir '${tempDirectory}/tonytoponi-github-io_files'`;
       await fs.mkdir(resourcesDirectoryPath);
-      const scope = nock(url)
+      nock(url)
         .get('/')
         .reply(200, document);
       await expect(loadPage(url, tempDirectory)).rejects.toThrow(message);
-      expect(scope.isDone()).toBeTruthy();
     },
   );
 
@@ -115,11 +111,10 @@ describe('Page-load tests', () => {
     async () => {
       const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
       const message = "Can't save data at disc. Error: ENOENT: no such file or directory, open '/tmp/boom/tonytoponi-github-io.html'";
-      const scope = nock(url)
+      nock(url)
         .get('/')
         .reply(200, document);
       await expect(loadPage(url, '/tmp/boom')).rejects.toThrow(message);
-      expect(scope.isDone()).toBeTruthy();
     },
   );
 
@@ -128,11 +123,10 @@ describe('Page-load tests', () => {
     async () => {
       const document = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
       const message = "Can't download resource https://tonytoponi.github.io Request failed with status code 404";
-      const scope = nock(url)
+      nock(url)
         .get('/')
         .reply(404, document);
       await expect(loadPage(url, tempDirectory)).rejects.toThrow(message);
-      expect(scope.isDone()).toBeTruthy();
     },
   );
 });
